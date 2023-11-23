@@ -1,0 +1,16 @@
+{
+  "name": "online_market_shop",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "dev": "nodemon index.js"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "node-telegram-bot-api": "^0.64.0",
+    "nodemon": "^3.0.1",
+    "pg": "^8.11.3"
+  }
+}
