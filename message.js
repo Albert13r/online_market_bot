@@ -1,6 +1,6 @@
 function infoMessage() {
-  return `I'm your personal bot assistant in our online market platform.\nIf you want to give us your phone number and email for feedback, use these commands:\n/share_email\n/share_phone_number\n
-Use next commands for your work:\n/create_anounce`;
+  return `Я ваш персональний бот-помічник на платформі онлайн-торгівлі.\nЯкщо ви хочете, щоб ми могли зв'язатися з вами, скористайтеся наступними командами:\n/share_email - поділитися електронною поштою\n/share_phone_number - поділитися номером телефону\n
+Наступні команди допоможуть вам керувати вашими оголошеннями:\n/create_announce - створити оголошення`;
 }
 
 

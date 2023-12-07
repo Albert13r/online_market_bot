@@ -13,8 +13,8 @@ const User = sequelize.define("user", {
     unique: true,
     allowNull: false
   },
-  email: { type: DataTypes.STRING, allowNull: false, unique: true },
-  phoneNumber: { type: DataTypes.STRING, allowNull: false, unique: true },
+  email: { type: DataTypes.STRING, allowNull: true, unique: true },
+  phoneNumber: { type: DataTypes.STRING, allowNull: true, unique: true },
 }, {timestamps: true})
 
 const UserAnounce = sequelize.define("user_anounce", {
@@ -23,11 +23,14 @@ const UserAnounce = sequelize.define("user_anounce", {
     primaryKey: true,
     autoIncrement: true,
   },
-  photoLink: {type: DataTypes.STRING, allowNull:true, unique: false},
+  title: {
+    type: DataTypes.STRING, allowNull:false, unique: false
+  },
+  photoLink: {type: DataTypes.STRING, allowNull:false, unique: false},
   description: {type: DataTypes.STRING, allowNull:false, unique: false},
   price: {type: DataTypes.INTEGER, allowNull:false, unique: false},
   currency: {type: DataTypes.STRING, allowNull:false, unique: false},
-  tags: {type: DataTypes.ARRAY(DataTypes.STRING)}
+  tags: {type: DataTypes.ARRAY(DataTypes.STRING), allowNull: true}
 }, {timestamps: true})
 
 
