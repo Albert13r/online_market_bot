@@ -84,6 +84,7 @@ bot.onText(/\/share_phone_number/, async (msg) => {
 
 bot.onText(/\/create_announce/, (msg) => {
   const chatId = msg.chat.id;
+  userId = msg.from.id
 
   bot.sendMessage(chatId, "Введіть назву продукту:");
   bot.once("text", (titleMsg) => {
@@ -98,39 +99,42 @@ bot.onText(/\/create_announce/, (msg) => {
         price = priceMsg.text;
 
         bot.sendMessage(chatId, "Прикріпіть зображення:");
-        bot.once('photo', async (photoMsg) => {
+        bot.once('message', async (photoMsg) => {
+          // console.log(photoMsg)
           try {
             const userFolder = path.resolve(__dirname, `media/${msg.from.id}`);
         
-            // Проверяем существование родительской директории перед созданием
             if (!fs.existsSync(userFolder)) {
               fs.mkdirSync(userFolder, { recursive: true });
             }
-        
-            // Получаем информацию о файле
             const fileInfo = await bot.getFile(photoMsg.photo[photoMsg.photo.length - 1].file_id);
-        
-            // Генерируем уникальное имя файла
             const timestamp = new Date().getTime();
             const uniqueFileName = `photo_${timestamp}.jpg`;
         
-            // Загружаем файл с помощью getFileStream
             const fileStream = bot.getFileStream(fileInfo.file_id);
             
             const finalFilePath = path.join(userFolder, uniqueFileName);
-        
-            // Создаем поток для записи файла
+
             const writeStream = fs.createWriteStream(finalFilePath);
         
-            // Переносим данные из fileStream в writeStream
             fileStream.pipe(writeStream);
         
             // Ожидаем завершения операции
             await new Promise((resolve) => {
               writeStream.on('finish', resolve);
             });
-        
-            console.log('Photo successfully uploaded with a unique file name');
+
+            const userAnnounce = {
+              userId: userId,
+              title: title, 
+              description: description,
+              price: price,
+              photo: finalFilePath
+            }
+            bot.sendPhoto(msg.chat.id, finalFilePath, {caption: `"${title}"\n${price} грн\n\n${description}\n`})
+            bot.sendPhoto(process.env.CHANNEL_ID, finalFilePath, {caption: `"${title}"\n${price} грн\n\n${description}\n`})
+
+            console.log('Photo successfully uploaded with a unique file name')
           } catch (error) {
             console.error('Error occurred during photo upload::', error.message);
           }
