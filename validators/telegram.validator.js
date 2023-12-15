@@ -12,8 +12,9 @@ const userInfoSchema =  Joi.object({
 
 const announceSchmea = Joi.object({
   price: Joi.number().min(1).max(1000000),
-  title: Joi.string().min(3).max(150),
-  description: Joi.string().min(10).max(250)
+  product_title: Joi.string().min(3).max(150),
+  description: Joi.string().min(10).max(250),
+  photo: Joi.string().allow(!null)
 })
 
 module.exports = {userInfoSchema, announceSchmea}

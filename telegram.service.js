@@ -38,6 +38,143 @@ bot.setMyCommands([
   { command: "/create_announce", description: "Створити оголошення" },
 ]);
 
+const steps = [
+  {
+    id: 1,
+    type: "title",
+    title: "Введіть назву продукту:",
+    dest_id: 2,
+  },
+  {
+    id: 2,
+    type: "description",
+    title: "Короткий опис продукту:",
+    dest_id: 3,
+  },
+  {
+    id: 3,
+    type: "price",
+    title: "Ціна у гривнях:",
+    dest_id: 4,
+  },
+  {
+    id: 4,
+    type: "photo",
+    title: "Прикріпіть зображення:",
+  },
+];
+
+const handlers = {
+  title: setTitle,
+  description: setDescription,
+  price: setPrice,
+  photo: setPhoto,
+};
+
+function setTitle(titleMsg) {
+  const { error } = announceSchmea.validate({ product_title: titleMsg.text });
+  if (error) {
+    return {
+      isError: true,
+      msg: "Назва повина містити від 3 до 150 літер",
+    };
+  }
+  title = titleMsg.text;
+  return {
+    isError: false,
+  };
+}
+
+function setDescription(descMsg) {
+  const { error } = announceSchmea.validate({ description: descMsg.text });
+  if (error) {
+    return {
+      isError: true,
+      msg: `Опис повинен містити від 10 до 250 літер`,
+    };
+  }
+  description = descMsg.text;
+  return {
+    isError: false,
+  };
+}
+
+function setPrice(priceMsg) {
+  const { error } = announceSchmea.validate({ price: priceMsg.text });
+  if (error) {
+    return {
+      isError: true,
+      msg: "Ціна повина бути в межах від 1 до 1000000 грн",
+    };
+  }
+  price = priceMsg.text;
+  return {
+    isError: false,
+  };
+}
+
+async function setPhoto(photoMsg) {
+  if (!photoMsg.photo) {
+    return {
+      isError: true,
+    };
+  }
+    try {
+      const userFolder = path.resolve(__dirname, `media/${photoMsg.from.id}`);
+
+      if (!fs.existsSync(userFolder)) {
+        fs.mkdirSync(userFolder, { recursive: true });
+      }
+      const fileInfo = await bot.getFile(
+        photoMsg.photo[photoMsg.photo.length - 1].file_id
+      );
+      const timestamp = new Date().getTime();
+      const uniqueFileName = `photo_${timestamp}.jpg`;
+
+      const fileStream = bot.getFileStream(fileInfo.file_id);
+
+      const finalFilePath = path.resolve(userFolder, uniqueFileName);
+
+      const writeStream = fs.createWriteStream(finalFilePath);
+
+      fileStream.pipe(writeStream);
+
+      // Ожидаем завершения операции
+      await new Promise((resolve) => {
+        writeStream.on("finish", resolve);
+      });
+
+      const userAnnounce = {
+        userId: userId,
+        title: title,
+        description: description,
+        price: price,
+        photo: finalFilePath,
+      };
+      
+      bot.sendPhoto(photoMsg.chat.id, finalFilePath, {
+        caption: `"${title}"\n${price} грн\n\n${description}\n`,
+      });
+
+      /// тут пост должен добавляться в очередь
+      
+      bot.sendPhoto(process.env.CHANNEL_ID, finalFilePath, {
+        caption: `"${title}"\n${price} грн\n\n${description}\n`,
+      });
+
+      console.log("Photo successfully uploaded with a unique file name");
+    } catch (error) {
+      console.error(
+        "Error occurred during photo upload:",
+        error.message
+      );
+    }
+
+  return {
+    isError: false,
+  };
+}
+
 bot.onText(/\/start/, (msg) => {
   const text = `Вітаю - ${msg.from.username}\n\n${infoMessage.infoMessage()}`;
   bot.sendMessage(msg.chat.id, text);
@@ -58,9 +195,9 @@ bot.onText(/\/share_email/, async (msg) => {
     emailPrompt.message_id,
     async (emailMsg) => {
       const email = emailMsg.text;
-      const { error, value } = userInfoSchema.validate({ email: email });
+      const { error } = userInfoSchema.validate({ email: email });
       if (error) {
-       return bot.sendMessage(
+        return bot.sendMessage(
           msg.chat.id,
           `Ваша пошта не відповідає формату\nБудь ласка, спробуйте ще.`
         );
@@ -87,13 +224,16 @@ bot.onText(/\/share_phone_number/, async (msg) => {
     async (phoneMsg) => {
       const phone = phoneMsg.text;
       const { error, value } = userInfoSchema.validate({ phone_number: phone });
-    if (error) {
+      if (error) {
+        return bot.sendMessage(
+          msg.chat.id,
+          `Ваша номер телефону не відповідає формату\nБудь ласка, спробуйте ще.`
+        );
+      }
       return bot.sendMessage(
         msg.chat.id,
-        `Ваша номер телефону не відповідає формату\nБудь ласка, спробуйте ще.`
+        `Ваш номер телефону збережено\n${phone}`
       );
-    }
-    return bot.sendMessage(msg.chat.id, `Ваш номер телефону збережено\n${phone}`);
       // save phone in db
     }
   );
@@ -102,75 +242,23 @@ bot.onText(/\/share_phone_number/, async (msg) => {
 bot.onText(/\/create_announce/, (msg) => {
   const chatId = msg.chat.id;
   userId = msg.from.id;
+  execution(steps, steps[0]);
 
-  bot.sendMessage(chatId, "Введіть назву продукту:");
-  bot.once("text", (titleMsg) => {
-    title = titleMsg.text;
+  function execution(steps, currentStep, errTitle) {
+    bot.sendMessage(chatId, errTitle ?? currentStep.title);
+    bot.once("message", async (msg) => {
+      const response = await handlers[currentStep.type](msg);
 
-    bot.sendMessage(chatId, "Короткий опис продукту:");
-    bot.once("text", (descriptionMsg) => {
-      description = descriptionMsg.text;
-
-      bot.sendMessage(chatId, "Ціна у гривнях:");
-      bot.once("text", (priceMsg) => {
-        price = priceMsg.text;
-
-        bot.sendMessage(chatId, "Прикріпіть зображення:");
-        bot.once("message", async (photoMsg) => {
-          // console.log(photoMsg)
-          try {
-            const userFolder = path.resolve(__dirname, `media/${msg.from.id}`);
-
-            if (!fs.existsSync(userFolder)) {
-              fs.mkdirSync(userFolder, { recursive: true });
-            }
-            const fileInfo = await bot.getFile(
-              photoMsg.photo[photoMsg.photo.length - 1].file_id
-            );
-            const timestamp = new Date().getTime();
-            const uniqueFileName = `photo_${timestamp}.jpg`;
-
-            const fileStream = bot.getFileStream(fileInfo.file_id);
-
-            const finalFilePath = path.join(userFolder, uniqueFileName);
-
-            const writeStream = fs.createWriteStream(finalFilePath);
-
-            fileStream.pipe(writeStream);
-
-            // Ожидаем завершения операции
-            await new Promise((resolve) => {
-              writeStream.on("finish", resolve);
-            });
-
-            const userAnnounce = {
-              userId: userId,
-              title: title,
-              description: description,
-              price: price,
-              photo: finalFilePath,
-            };
-            bot.sendPhoto(msg.chat.id, finalFilePath, {
-              caption: `"${title}"\n${price} грн\n\n${description}\n`,
-            });
-            bot.sendPhoto(process.env.CHANNEL_ID, finalFilePath, {
-              caption: `"${title}"\n${price} грн\n\n${description}\n`,
-            });
-
-            console.log("Photo successfully uploaded with a unique file name");
-          } catch (error) {
-            console.error(
-              "Error occurred during photo upload::",
-              error.message
-            );
-          }
-        });
-      });
+      if (response.isError) {
+        return execution(steps, currentStep, response.msg);
+      }
+      if (!currentStep.dest_id) {
+        return;
+      }
+      const nextStep = steps.find((step) => step.id === currentStep.dest_id);
+      return execution(steps, nextStep);
     });
-  });
+  }
 });
 
 module.exports = start;
-
-
-
