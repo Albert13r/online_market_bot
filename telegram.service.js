@@ -119,68 +119,87 @@ async function setPhoto(photoMsg) {
       isError: true,
     };
   }
-    try {
-      const userFolder = path.resolve(__dirname, `media/${photoMsg.from.id}`);
+  try {
+    const userFolder = path.resolve(__dirname, `media/${photoMsg.from.id}`);
 
-      if (!fs.existsSync(userFolder)) {
-        fs.mkdirSync(userFolder, { recursive: true });
-      }
-      const fileInfo = await bot.getFile(
-        photoMsg.photo[photoMsg.photo.length - 1].file_id
-      );
-      const timestamp = new Date().getTime();
-      const uniqueFileName = `photo_${timestamp}.jpg`;
-
-      const fileStream = bot.getFileStream(fileInfo.file_id);
-
-      const finalFilePath = path.resolve(userFolder, uniqueFileName);
-
-      const writeStream = fs.createWriteStream(finalFilePath);
-
-      fileStream.pipe(writeStream);
-
-      // Ожидаем завершения операции
-      await new Promise((resolve) => {
-        writeStream.on("finish", resolve);
-      });
-
-      const userAnnounce = {
-        userId: userId,
-        title: title,
-        description: description,
-        price: price,
-        photo: finalFilePath,
-      };
-      
-      bot.sendPhoto(photoMsg.chat.id, finalFilePath, {
-        caption: `"${title}"\n${price} грн\n\n${description}\n`,
-      });
-
-      /// тут пост должен добавляться в очередь
-      
-      bot.sendPhoto(process.env.CHANNEL_ID, finalFilePath, {
-        caption: `"${title}"\n${price} грн\n\n${description}\n`,
-      });
-
-      console.log("Photo successfully uploaded with a unique file name");
-    } catch (error) {
-      console.error(
-        "Error occurred during photo upload:",
-        error.message
-      );
+    if (!fs.existsSync(userFolder)) {
+      fs.mkdirSync(userFolder, { recursive: true });
     }
+    const fileInfo = await bot.getFile(
+      photoMsg.photo[photoMsg.photo.length - 1].file_id
+    );
+    const timestamp = new Date().getTime();
+    const uniqueFileName = `photo_${timestamp}.jpg`;
+
+    const fileStream = bot.getFileStream(fileInfo.file_id);
+
+    const finalFilePath = path.resolve(userFolder, uniqueFileName);
+
+    const writeStream = fs.createWriteStream(finalFilePath);
+
+    fileStream.pipe(writeStream);
+
+    // Ожидаем завершения операции
+    await new Promise((resolve) => {
+      writeStream.on("finish", resolve);
+    });
+
+    const userAnnounce = {
+      userId: userId,
+      title: title,
+      description: description,
+      price: price,
+      photo: finalFilePath,
+    };
+
+    bot.sendPhoto(photoMsg.chat.id, finalFilePath, {
+      caption: `"${title}"\n${price} грн\n\n${description}\n`,
+    });
+
+    /// тут пост должен добавляться в очередь
+
+    bot.sendPhoto(process.env.CHANNEL_ID, finalFilePath, {
+      caption: `"${title}"\n${price} грн\n\n${description}\n`,
+    });
+
+    console.log("Photo successfully uploaded with a unique file name");
+  } catch (error) {
+    console.error("Error occurred during photo upload:", error.message);
+  }
 
   return {
     isError: false,
   };
 }
 
-bot.onText(/\/start/, (msg) => {
-  const text = `Вітаю - ${msg.from.username}\n\n${infoMessage.infoMessage()}`;
-  bot.sendMessage(msg.chat.id, text);
+bot.onText(/\/start/, async (msg) => {
+  const userName = msg.from.username
+  if(!userName){
+    bot.sendMessage(
+      msg.chat.id,
+      `Щоб користуватися всіма можливостями нашої платформи, ви повинні мати "ім'я користувача" у своєму телеграм-біографії або ви можете поділитися з нами своїм номером телефону/електронною поштою`
+    );
+  }
+  try{
+    const user = await User.findOne({
+      where: { username: userName },
+    });
+    if (!user) {
+      const newUser = await User.create({
+        username: userName
+      })
+    }
+    const text = `Вітаю - ${msg.from.username}\n\n${infoMessage.infoMessage()}`;
+    bot.sendMessage(msg.chat.id, text);
+  }
+  catch(error){
+    console.error(error)
+  }
 });
 
 bot.onText(/\/share_email/, async (msg) => {
+  const chatId = msg.chat.id
+  const userName = msg.from.username
   const emailPrompt = await bot.sendMessage(
     msg.chat.id,
     `Будь ласка, введіть адресу вашої електронної пошти:\n`,
@@ -202,13 +221,37 @@ bot.onText(/\/share_email/, async (msg) => {
           `Ваша пошта не відповідає формату\nБудь ласка, спробуйте ще.`
         );
       }
-      return bot.sendMessage(msg.chat.id, `Ваша пошта збереженна\n${email}`);
+      try{
+        const user = await User.findOne({
+          where: { username: userName },
+        });
+        if (!user) {
+          const newUser = await User.create({
+            username: userName
+          })
+        }
+        if( user.dataValues.email === email ){
+          return  bot.sendMessage(chatId, 'Ваша електронна пошта вже була зареєстрована!')
+        }
+        await User.update({
+          email: email
+        },{
+          where: {
+            username: userName
+          }
+        })
+        return bot.sendMessage(chatId, `Ваша електронна пошта ${email} збережена!`)
+      }
+      catch(error){
+        console.error(error)
+      }
     }
-    // save email in db
   );
 });
 
 bot.onText(/\/share_phone_number/, async (msg) => {
+  const chatId = msg.chat.id
+  const userName = msg.from.username
   const phonePrompt = await bot.sendMessage(
     msg.chat.id,
     `Будь ласка, введіть номер свого телефону у форматі - (0хххххххххх):\n`,
@@ -230,10 +273,30 @@ bot.onText(/\/share_phone_number/, async (msg) => {
           `Ваша номер телефону не відповідає формату\nБудь ласка, спробуйте ще.`
         );
       }
-      return bot.sendMessage(
-        msg.chat.id,
-        `Ваш номер телефону збережено\n${phone}`
-      );
+      try{
+        const user = await User.findOne({
+          where: { username: userName },
+        });
+        if (!user) {
+          const newUser = await User.create({
+            username: userName
+          })
+        }
+        if( user.dataValues.phoneNumber === phone ){
+         return bot.sendMessage(chatId, 'Ваш номер телефону вже був зареєстрований!')
+        }
+        await User.update({
+          phoneNumber: phone
+        },{
+          where: {
+            username: userName
+          }
+        })
+        return bot.sendMessage(chatId, `Ваш номер телефону ${phone} збережено!`)
+      }
+      catch(error){
+        console.error(error)
+      }
       // save phone in db
     }
   );
