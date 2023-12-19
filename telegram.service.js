@@ -173,33 +173,28 @@ async function setPhoto(photoMsg) {
 }
 
 bot.onText(/\/start/, async (msg) => {
-  const userName = msg.from.username
-  if(!userName){
-    bot.sendMessage(
-      msg.chat.id,
-      `Щоб користуватися всіма можливостями нашої платформи, ви повинні мати "ім'я користувача" у своєму телеграм-біографії або ви можете поділитися з нами своїм номером телефону/електронною поштою`
-    );
-  }
-  try{
+  const userId = msg.from.id
+  try {
     const user = await User.findOne({
-      where: { username: userName },
+      where: { userId: userId },
     });
     if (!user) {
-      const newUser = await User.create({
-        username: userName
-      })
+      await User.create({
+        userId: userId
+      });
     }
-    const text = `Вітаю - ${msg.from.username}\n\n${infoMessage.infoMessage()}`;
+    const text = `Вітаю - ${
+      msg.from.first_name || msg.from.second_name || msg.from.username
+    }\n\n${infoMessage.infoMessage()}`;
     bot.sendMessage(msg.chat.id, text);
-  }
-  catch(error){
-    console.error(error)
+  } catch (error) {
+    console.error(error);
   }
 });
 
 bot.onText(/\/share_email/, async (msg) => {
-  const chatId = msg.chat.id
-  const userName = msg.from.username
+  const userId = msg.from.id;
+  const chatId = msg.chat.id;
   const emailPrompt = await bot.sendMessage(
     msg.chat.id,
     `Будь ласка, введіть адресу вашої електронної пошти:\n`,
@@ -221,37 +216,41 @@ bot.onText(/\/share_email/, async (msg) => {
           `Ваша пошта не відповідає формату\nБудь ласка, спробуйте ще.`
         );
       }
-      try{
+      try {
         const user = await User.findOne({
-          where: { username: userName },
+          where: { email: email },
         });
-        if (!user) {
-          const newUser = await User.create({
-            username: userName
-          })
+
+        if (user && user.dataValues.userId !== userId) {
+          return bot.sendMessage(
+            chatId,
+            "Ваша електронна пошта вже була зареєстрована!"
+          );
         }
-        if( user.dataValues.email === email ){
-          return  bot.sendMessage(chatId, 'Ваша електронна пошта вже була зареєстрована!')
-        }
-        await User.update({
-          email: email
-        },{
-          where: {
-            username: userName
+        await User.update(
+          {
+            email: email,
+          },
+          {
+            where: {
+              userId: userId,
+            },
           }
-        })
-        return bot.sendMessage(chatId, `Ваша електронна пошта ${email} збережена!`)
-      }
-      catch(error){
-        console.error(error)
+        );
+        return bot.sendMessage(
+          chatId,
+          `Ваша електронна пошта ${email} збережена!`
+        );
+      } catch (error) {
+        console.error(error);
       }
     }
   );
 });
 
 bot.onText(/\/share_phone_number/, async (msg) => {
-  const chatId = msg.chat.id
-  const userName = msg.from.username
+  const userId = msg.from.id;
+  const chatId = msg.chat.id;
   const phonePrompt = await bot.sendMessage(
     msg.chat.id,
     `Будь ласка, введіть номер свого телефону у форматі - (0хххххххххх):\n`,
@@ -266,38 +265,40 @@ bot.onText(/\/share_phone_number/, async (msg) => {
     phonePrompt.message_id,
     async (phoneMsg) => {
       const phone = phoneMsg.text;
-      const { error, value } = userInfoSchema.validate({ phone_number: phone });
+      const { error } = userInfoSchema.validate({ phone_number: phone });
       if (error) {
         return bot.sendMessage(
           msg.chat.id,
           `Ваша номер телефону не відповідає формату\nБудь ласка, спробуйте ще.`
         );
       }
-      try{
+      try {
         const user = await User.findOne({
-          where: { username: userName },
+          where: { phoneNumber: phone },
         });
-        if (!user) {
-          const newUser = await User.create({
-            username: userName
-          })
+        if( user && user.dataValues.userId !== userId ){
+          return bot.sendMessage(
+            chatId,
+            `Цей номер телефону вже зареєстрований!`
+          );
         }
-        if( user.dataValues.phoneNumber === phone ){
-         return bot.sendMessage(chatId, 'Ваш номер телефону вже був зареєстрований!')
-        }
-        await User.update({
-          phoneNumber: phone
-        },{
-          where: {
-            username: userName
-          }
-        })
-        return bot.sendMessage(chatId, `Ваш номер телефону ${phone} збережено!`)
+            await User.update(
+              {
+                phoneNumber: phone,
+              },
+              {
+                where: {
+                  userId: userId,
+                },
+              }
+            );
+            return bot.sendMessage(
+              chatId,
+              `Ваш номер телефону ${phone} збережено!`
+            );
+      } catch (error) {
+        console.error(error);
       }
-      catch(error){
-        console.error(error)
-      }
-      // save phone in db
     }
   );
 });
