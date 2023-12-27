@@ -1,7 +1,7 @@
 const pkg = require("node-telegram-bot-api");
 const TelegramApi = pkg;
 const sequelize = require("./db");
-const { User, UserAnounce } = require("./models/online_shop.model");
+const { User, UserSaleAnounce } = require("./models/online_shop.model");
 const infoMessage = require("./message");
 const fs = require("fs");
 const path = require("path");
@@ -59,6 +59,12 @@ const steps = [
   },
   {
     id: 4,
+    type: "tags",
+    title: "Введіть через кому  ','  усі ключові слова для вашого продукту",
+    dest_id: 5,
+  },
+  {
+    id: 5,
     type: "photo",
     title: "Прикріпіть зображення:",
   },
@@ -69,6 +75,7 @@ const handlers = {
   description: setDescription,
   price: setPrice,
   photo: setPhoto,
+  tags: setTags,
 };
 
 function setTitle(titleMsg) {
@@ -113,6 +120,19 @@ function setPrice(priceMsg) {
   };
 }
 
+function setTags(tagsMsg) {
+  if (!tagsMsg.text) {
+    return {
+      isError: true,
+    };
+  }
+  tags = tagsMsg.text.split(",").map((element) => "#" + element.trim());
+  console.log(tags)
+  return {
+    isError: false
+  }
+}
+
 async function setPhoto(photoMsg) {
   if (!photoMsg.photo) {
     return {
@@ -149,18 +169,19 @@ async function setPhoto(photoMsg) {
       title: title,
       description: description,
       price: price,
+      tags: tags,
       photo: finalFilePath,
     };
 
     bot.sendPhoto(photoMsg.chat.id, finalFilePath, {
-      caption: `"${title}"\n${price} грн\n\n${description}\n`,
+      caption: `"${title}"\n${price} грн\n\n${description}\n\n${tags.join(' ')}`,
     });
 
     /// тут пост должен добавляться в очередь
 
-    bot.sendPhoto(process.env.CHANNEL_ID, finalFilePath, {
-      caption: `"${title}"\n${price} грн\n\n${description}\n`,
-    });
+    // bot.sendPhoto(process.env.CHANNEL_ID, finalFilePath, {
+    //   caption: `"${title}"\n${price} грн\n\n${description}\n\n${tags}`,
+    // });
 
     console.log("Photo successfully uploaded with a unique file name");
   } catch (error) {
@@ -173,14 +194,14 @@ async function setPhoto(photoMsg) {
 }
 
 bot.onText(/\/start/, async (msg) => {
-  const userId = msg.from.id
+  const userId = msg.from.id;
   try {
     const user = await User.findOne({
       where: { userId: userId },
     });
     if (!user) {
       await User.create({
-        userId: userId
+        userId: userId,
       });
     }
     const text = `Вітаю - ${
@@ -276,26 +297,26 @@ bot.onText(/\/share_phone_number/, async (msg) => {
         const user = await User.findOne({
           where: { phoneNumber: phone },
         });
-        if( user && user.dataValues.userId !== userId ){
+        if (user && user.dataValues.userId !== userId) {
           return bot.sendMessage(
             chatId,
             `Цей номер телефону вже зареєстрований!`
           );
         }
-            await User.update(
-              {
-                phoneNumber: phone,
-              },
-              {
-                where: {
-                  userId: userId,
-                },
-              }
-            );
-            return bot.sendMessage(
-              chatId,
-              `Ваш номер телефону ${phone} збережено!`
-            );
+        await User.update(
+          {
+            phoneNumber: phone,
+          },
+          {
+            where: {
+              userId: userId,
+            },
+          }
+        );
+        return bot.sendMessage(
+          chatId,
+          `Ваш номер телефону ${phone} збережено!`
+        );
       } catch (error) {
         console.error(error);
       }

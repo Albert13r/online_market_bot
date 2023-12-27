@@ -20,8 +20,8 @@ const User = sequelize.define(
   { timestamps: true }
 );
 
-const UserAnounce = sequelize.define(
-  "user_anounce",
+const UserSaleAnounce = sequelize.define(
+  "user_sale_anounce",
   {
     anounceId: {
       type: DataTypes.INTEGER,
@@ -36,14 +36,13 @@ const UserAnounce = sequelize.define(
     photoLink: { type: DataTypes.STRING, allowNull: false, unique: false },
     description: { type: DataTypes.STRING, allowNull: false, unique: false },
     price: { type: DataTypes.INTEGER, allowNull: false, unique: false },
-    currency: { type: DataTypes.STRING, allowNull: false, unique: false },
     tags: { type: DataTypes.ARRAY(DataTypes.STRING), allowNull: true },
   },
   { timestamps: true }
 );
 
-User.hasMany(UserAnounce, {
-  as: "userAnounce",
+User.hasMany(UserSaleAnounce, {
+  as: "userSaleAnounce",
 });
 
-module.exports = { User, UserAnounce };
+module.exports = { User, UserSaleAnounce };
