@@ -1,7 +1,7 @@
 const pkg = require("node-telegram-bot-api");
 const TelegramApi = pkg;
 const sequelize = require("./db");
-const { User, UserSaleAnounce } = require("./models/online_shop.model");
+const { User, UserSaleAnounce, UserPurchaseAnounce } = require("./models/online_shop.model");
 const infoMessage = require("./message");
 const fs = require("fs");
 const path = require("path");
@@ -9,6 +9,8 @@ const {
   userInfoSchema,
   announceSchmea,
 } = require("./validators/telegram.validator");
+
+const announcement = new Map()
 
 require("dotenv").config();
 
@@ -30,15 +32,19 @@ bot.setMyCommands([
     command: "/start",
     description: "Інформація про можливості бота",
   },
+  { command: "/create_sale_announce", description: "Створити оголошення продажу" },
+  {
+    command: "/create_purchase_announce",
+    description: "Створити оголошення купівлі ",
+  },
   { command: "/share_email", description: "Поділитися електронною поштою" },
   {
     command: "/share_phone_number",
     description: "Поділитися номером телефону",
   },
-  { command: "/create_announce", description: "Створити оголошення" },
 ]);
 
-const steps = [
+const sale_steps = [
   {
     id: 1,
     type: "title",
@@ -60,13 +66,35 @@ const steps = [
   {
     id: 4,
     type: "tags",
-    title: "Введіть через кому  ','  усі ключові слова для вашого продукту",
+    title:
+      "Введіть через кому  ','  усі ключові слова для вашого продукту.\nНаприклад: JohnDeere, автозапчастини, 4075R",
     dest_id: 5,
   },
   {
     id: 5,
     type: "photo",
     title: "Прикріпіть зображення:",
+  },
+];
+
+const purchase_steps = [
+  {
+    id: 1,
+    type: "title",
+    title: "Введіть назву продукту:",
+    dest_id: 2,
+  },
+  {
+    id: 2,
+    type: "description",
+    title: "Короткий зміст:",
+    dest_id: 3,
+  },
+  {
+    id: 3,
+    type: "tags",
+    title:
+      "Введіть через кому  ','  усі ключові слова для вашого продукту.\nНаприклад: JohnDeere, автозапчастини, 4075R",
   },
 ];
 
@@ -86,8 +114,10 @@ function setTitle(titleMsg) {
       msg: "Назва повина містити від 3 до 150 літер",
     };
   }
-  title = titleMsg.text;
   return {
+    data: {
+      title: titleMsg.text
+    },
     isError: false,
   };
 }
@@ -100,8 +130,10 @@ function setDescription(descMsg) {
       msg: `Опис повинен містити від 10 до 250 літер`,
     };
   }
-  description = descMsg.text;
   return {
+    data: {
+      description: descMsg.text
+    },
     isError: false,
   };
 }
@@ -114,8 +146,10 @@ function setPrice(priceMsg) {
       msg: "Ціна повина бути в межах від 1 до 1000000 грн",
     };
   }
-  price = priceMsg.text;
   return {
+    data: {
+      price: priceMsg.text
+    },
     isError: false,
   };
 }
@@ -126,11 +160,12 @@ function setTags(tagsMsg) {
       isError: true,
     };
   }
-  tags = tagsMsg.text.split(",").map((element) => "#" + element.trim());
-  console.log(tags)
   return {
-    isError: false
-  }
+    data: {
+      tags: tagsMsg.text.split(",").map((element) => "#" + element.trim().toLowerCase())
+    },
+    isError: false,
+  };
 }
 
 async function setPhoto(photoMsg) {
@@ -164,33 +199,27 @@ async function setPhoto(photoMsg) {
       writeStream.on("finish", resolve);
     });
 
-    const userAnnounce = {
-      userId: userId,
-      title: title,
-      description: description,
-      price: price,
-      tags: tags,
-      photo: finalFilePath,
-    };
 
-    bot.sendPhoto(photoMsg.chat.id, finalFilePath, {
-      caption: `"${title}"\n${price} грн\n\n${description}\n\n${tags.join(' ')}`,
-    });
 
     /// тут пост должен добавляться в очередь
 
     // bot.sendPhoto(process.env.CHANNEL_ID, finalFilePath, {
     //   caption: `"${title}"\n${price} грн\n\n${description}\n\n${tags}`,
     // });
-
     console.log("Photo successfully uploaded with a unique file name");
+    return {
+      data: {
+        photoLink: finalFilePath
+      },
+      isError: false,
+    };
+
   } catch (error) {
     console.error("Error occurred during photo upload:", error.message);
+    return {
+      isError: true,
+    };
   }
-
-  return {
-    isError: false,
-  };
 }
 
 bot.onText(/\/start/, async (msg) => {
@@ -324,10 +353,46 @@ bot.onText(/\/share_phone_number/, async (msg) => {
   );
 });
 
-bot.onText(/\/create_announce/, (msg) => {
+bot.onText(/\/create_sale_announce/, (msg) => {
   const chatId = msg.chat.id;
-  userId = msg.from.id;
-  execution(steps, steps[0]);
+  const userId = msg.from.id;
+  execution(sale_steps, sale_steps[0]);
+
+  function execution(steps, currentStep, errTitle) {
+    bot.sendMessage(chatId, errTitle ?? currentStep.title);
+    bot.once("message", async (msg) => {
+      const response = await handlers[currentStep.type](msg);
+
+      if (response.isError) {
+        return execution(steps, currentStep, response.msg);
+      }
+      let currentAnnauncment = announcement.get(userId)
+
+      currentAnnauncment = {
+        ...(currentAnnauncment ?? {}), ...response.data
+      }
+      announcement.set(userId, currentAnnauncment)
+
+      if (!currentStep.dest_id) {
+        await UserSaleAnounce.create({
+          ...currentAnnauncment, userUserId: userId
+        })
+        bot.sendPhoto(chatId, currentAnnauncment.photoLink, {
+          caption: `"${currentAnnauncment.title}"\n${currentAnnauncment.price} грн\n\n${currentAnnauncment.description}\n\n${currentAnnauncment.tags.join(' ')}`,
+        });
+        announcement.delete(userId)
+        return;
+      }
+      const nextStep = steps.find((step) => step.id === currentStep.dest_id);
+      return execution(steps, nextStep);
+    });
+  }
+});
+
+bot.onText(/\/create_purchase_announce/, (msg) => {
+  const chatId = msg.chat.id;
+  const userId = msg.from.id;
+  execution(purchase_steps, purchase_steps[0]);
 
   function execution(steps, currentStep, errTitle) {
     bot.sendMessage(chatId, errTitle ?? currentStep.title);
@@ -338,6 +403,16 @@ bot.onText(/\/create_announce/, (msg) => {
         return execution(steps, currentStep, response.msg);
       }
       if (!currentStep.dest_id) {
+        bot.sendMessage(
+          chatId,
+          `"${title}"\n\n${description}\n\n${tags.join(" ")}`
+        );
+        await UserPurchaseAnounce.create({
+          title: title,
+          userUserId: userId,
+          description: description,
+          tags: tags
+        })
         return;
       }
       const nextStep = steps.find((step) => step.id === currentStep.dest_id);

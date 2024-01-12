@@ -6,10 +6,10 @@ const User = sequelize.define(
   {
     id: {
       type: DataTypes.INTEGER,
-      primaryKey: true,
       autoIncrement: true,
     },
     userId: {
+      primaryKey: true,
       type: DataTypes.INTEGER,
       unique: true,
       allowNull: false,
@@ -41,8 +41,30 @@ const UserSaleAnounce = sequelize.define(
   { timestamps: true }
 );
 
+const UserPurchaseAnounce = sequelize.define(
+  "user_purchase_anounce",
+  {
+    anounceId: {
+      type: DataTypes.INTEGER,
+      primaryKey: true,
+      autoIncrement: true,
+    },
+    title: {
+      type: DataTypes.STRING,
+      allowNull: false,
+      unique: false,
+    },
+    description: { type: DataTypes.STRING, allowNull: false, unique: false },
+    tags: { type: DataTypes.ARRAY(DataTypes.STRING), allowNull: true },
+  },
+  { timestamps: true }
+);
+
 User.hasMany(UserSaleAnounce, {
   as: "userSaleAnounce",
 });
 
-module.exports = { User, UserSaleAnounce };
+User.hasMany(UserPurchaseAnounce, {
+  as: "userPurchaseAnounce",
+});
+module.exports = { User, UserSaleAnounce, UserPurchaseAnounce };
