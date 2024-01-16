@@ -1,7 +1,11 @@
 const pkg = require("node-telegram-bot-api");
 const TelegramApi = pkg;
 const sequelize = require("./db");
-const { User, UserSaleAnounce, UserPurchaseAnounce } = require("./models/online_shop.model");
+const {
+  User,
+  UserSaleAnounce,
+  UserPurchaseAnounce,
+} = require("./models/online_shop.model");
 const infoMessage = require("./message");
 const fs = require("fs");
 const path = require("path");
@@ -10,7 +14,7 @@ const {
   announceSchmea,
 } = require("./validators/telegram.validator");
 
-const announcement = new Map()
+const announcement = new Map();
 
 require("dotenv").config();
 
@@ -32,7 +36,10 @@ bot.setMyCommands([
     command: "/start",
     description: "Інформація про можливості бота",
   },
-  { command: "/create_sale_announce", description: "Створити оголошення продажу" },
+  {
+    command: "/create_sale_announce",
+    description: "Створити оголошення продажу",
+  },
   {
     command: "/create_purchase_announce",
     description: "Створити оголошення купівлі ",
@@ -116,7 +123,7 @@ function setTitle(titleMsg) {
   }
   return {
     data: {
-      title: titleMsg.text
+      title: titleMsg.text,
     },
     isError: false,
   };
@@ -132,7 +139,7 @@ function setDescription(descMsg) {
   }
   return {
     data: {
-      description: descMsg.text
+      description: descMsg.text,
     },
     isError: false,
   };
@@ -148,7 +155,7 @@ function setPrice(priceMsg) {
   }
   return {
     data: {
-      price: priceMsg.text
+      price: priceMsg.text,
     },
     isError: false,
   };
@@ -162,7 +169,9 @@ function setTags(tagsMsg) {
   }
   return {
     data: {
-      tags: tagsMsg.text.split(",").map((element) => "#" + element.trim().toLowerCase())
+      tags: tagsMsg.text
+        .split(",")
+        .map((element) => "#" + element.trim().toLowerCase()),
     },
     isError: false,
   };
@@ -199,8 +208,6 @@ async function setPhoto(photoMsg) {
       writeStream.on("finish", resolve);
     });
 
-
-
     /// тут пост должен добавляться в очередь
 
     // bot.sendPhoto(process.env.CHANNEL_ID, finalFilePath, {
@@ -209,11 +216,10 @@ async function setPhoto(photoMsg) {
     console.log("Photo successfully uploaded with a unique file name");
     return {
       data: {
-        photoLink: finalFilePath
+        photoLink: finalFilePath,
       },
       isError: false,
     };
-
   } catch (error) {
     console.error("Error occurred during photo upload:", error.message);
     return {
@@ -366,21 +372,27 @@ bot.onText(/\/create_sale_announce/, (msg) => {
       if (response.isError) {
         return execution(steps, currentStep, response.msg);
       }
-      let currentAnnauncment = announcement.get(userId)
+      let currentAnnauncment = announcement.get(userId);
 
       currentAnnauncment = {
-        ...(currentAnnauncment ?? {}), ...response.data
-      }
-      announcement.set(userId, currentAnnauncment)
+        ...(currentAnnauncment ?? {}),
+        ...response.data,
+      };
+      announcement.set(userId, currentAnnauncment);
 
       if (!currentStep.dest_id) {
         await UserSaleAnounce.create({
-          ...currentAnnauncment, userUserId: userId
-        })
-        bot.sendPhoto(chatId, currentAnnauncment.photoLink, {
-          caption: `"${currentAnnauncment.title}"\n${currentAnnauncment.price} грн\n\n${currentAnnauncment.description}\n\n${currentAnnauncment.tags.join(' ')}`,
+          ...currentAnnauncment,
+          userUserId: userId,
         });
-        announcement.delete(userId)
+        bot.sendPhoto(chatId, currentAnnauncment.photoLink, {
+          caption: `"${currentAnnauncment.title}"\n${
+            currentAnnauncment.price
+          } грн\n\n${
+            currentAnnauncment.description
+          }\n\n${currentAnnauncment.tags.join(" ")}`,
+        });
+        announcement.delete(userId);
         return;
       }
       const nextStep = steps.find((step) => step.id === currentStep.dest_id);
@@ -402,19 +414,26 @@ bot.onText(/\/create_purchase_announce/, (msg) => {
       if (response.isError) {
         return execution(steps, currentStep, response.msg);
       }
-      if (!currentStep.dest_id) {
-        bot.sendMessage(
-          chatId,
-          `"${title}"\n\n${description}\n\n${tags.join(" ")}`
-        );
-        await UserPurchaseAnounce.create({
-          title: title,
-          userUserId: userId,
-          description: description,
-          tags: tags
-        })
-        return;
-      }
+        let currentAnnauncment = announcement.get(userId);
+
+        currentAnnauncment = {
+          ...(currentAnnauncment ?? {}),
+          ...response.data,
+        };
+        announcement.set(userId, currentAnnauncment);
+
+        if (!currentStep.dest_id) {
+          await UserPurchaseAnounce.create({
+            ...currentAnnauncment,
+            userUserId: userId,
+          });
+          bot.sendMessage(
+            chatId,
+            `"${currentAnnauncment.title}"\n\n${currentAnnauncment.description}\n\n${currentAnnauncment.tags.join(" ")}`
+          );
+          announcement.delete(userId);
+          return;
+        }
       const nextStep = steps.find((step) => step.id === currentStep.dest_id);
       return execution(steps, nextStep);
     });
