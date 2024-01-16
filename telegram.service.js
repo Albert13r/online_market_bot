@@ -384,6 +384,7 @@ bot.onText(/\/create_sale_announce/, (msg) => {
         await UserSaleAnounce.create({
           ...currentAnnauncment,
           userUserId: userId,
+          announceType: "sale"
         });
         bot.sendPhoto(chatId, currentAnnauncment.photoLink, {
           caption: `"${currentAnnauncment.title}"\n${
@@ -426,6 +427,7 @@ bot.onText(/\/create_purchase_announce/, (msg) => {
           await UserPurchaseAnounce.create({
             ...currentAnnauncment,
             userUserId: userId,
+            announceType: "purchase"
           });
           bot.sendMessage(
             chatId,
