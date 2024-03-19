@@ -1,11 +1,7 @@
 const pkg = require("node-telegram-bot-api");
 const TelegramApi = pkg;
 const sequelize = require("./db");
-const {
-  User,
-  UserSaleAnounce,
-  UserPurchaseAnounce,
-} = require("./models/online_shop.model");
+const { User, UserAnounce } = require("./models/online_shop.model");
 const infoMessage = require("./message");
 const fs = require("fs");
 const path = require("path");
@@ -37,12 +33,8 @@ bot.setMyCommands([
     description: "Інформація про можливості бота",
   },
   {
-    command: "/create_sale_announce",
-    description: "Створити оголошення продажу",
-  },
-  {
-    command: "/create_purchase_announce",
-    description: "Створити оголошення купівлі ",
+    command: "/create_announce",
+    description: "Створити оголошення ",
   },
   { command: "/share_email", description: "Поділитися електронною поштою" },
   {
@@ -358,88 +350,105 @@ bot.onText(/\/share_phone_number/, async (msg) => {
     }
   );
 });
-
-bot.onText(/\/create_sale_announce/, (msg) => {
+bot.onText(/\/create_announce/, (msg) => {
   const chatId = msg.chat.id;
   const userId = msg.from.id;
-  execution(sale_steps, sale_steps[0]);
+  const announcement_keyboard = {
+    reply_markup: {
+      keyboard: [[{ text: "Купівля" }], [{ text: "Продаж" }]],
+      one_time_keyboard: true,
+    },
+  };
+  bot.sendMessage(
+    chatId,
+    "Оберіть будь ласка тип оголошення:",
+    announcement_keyboard
+  );
+  bot.once("message", (msg) => {
+    const messageText = msg.text;
+    if (messageText === "Купівля") {
+      execution(purchase_steps, purchase_steps[0]);
 
-  function execution(steps, currentStep, errTitle) {
-    bot.sendMessage(chatId, errTitle ?? currentStep.title);
-    bot.once("message", async (msg) => {
-      const response = await handlers[currentStep.type](msg);
+      function execution(steps, currentStep, errTitle) {
+        bot.sendMessage(chatId, errTitle ?? currentStep.title);
+        bot.once("message", async (msg) => {
+          const response = await handlers[currentStep.type](msg);
 
-      if (response.isError) {
-        return execution(steps, currentStep, response.msg);
-      }
-      let currentAnnauncment = announcement.get(userId);
+          if (response.isError) {
+            return execution(steps, currentStep, response.msg);
+          }
+          let currentAnnauncment = announcement.get(userId);
 
-      currentAnnauncment = {
-        ...(currentAnnauncment ?? {}),
-        ...response.data,
-      };
-      announcement.set(userId, currentAnnauncment);
+          currentAnnauncment = {
+            ...(currentAnnauncment ?? {}),
+            ...response.data,
+          };
+          announcement.set(userId, currentAnnauncment);
 
-      if (!currentStep.dest_id) {
-        await UserSaleAnounce.create({
-          ...currentAnnauncment,
-          userUserId: userId,
-          announceType: "sale"
-        });
-        bot.sendPhoto(chatId, currentAnnauncment.photoLink, {
-          caption: `"${currentAnnauncment.title}"\n${
-            currentAnnauncment.price
-          } грн\n\n${
-            currentAnnauncment.description
-          }\n\n${currentAnnauncment.tags.join(" ")}`,
-        });
-        announcement.delete(userId);
-        return;
-      }
-      const nextStep = steps.find((step) => step.id === currentStep.dest_id);
-      return execution(steps, nextStep);
-    });
-  }
-});
-
-bot.onText(/\/create_purchase_announce/, (msg) => {
-  const chatId = msg.chat.id;
-  const userId = msg.from.id;
-  execution(purchase_steps, purchase_steps[0]);
-
-  function execution(steps, currentStep, errTitle) {
-    bot.sendMessage(chatId, errTitle ?? currentStep.title);
-    bot.once("message", async (msg) => {
-      const response = await handlers[currentStep.type](msg);
-
-      if (response.isError) {
-        return execution(steps, currentStep, response.msg);
-      }
-        let currentAnnauncment = announcement.get(userId);
-
-        currentAnnauncment = {
-          ...(currentAnnauncment ?? {}),
-          ...response.data,
-        };
-        announcement.set(userId, currentAnnauncment);
-
-        if (!currentStep.dest_id) {
-          await UserPurchaseAnounce.create({
-            ...currentAnnauncment,
-            userUserId: userId,
-            announceType: "purchase"
-          });
-          bot.sendMessage(
-            chatId,
-            `"${currentAnnauncment.title}"\n\n${currentAnnauncment.description}\n\n${currentAnnauncment.tags.join(" ")}`
+          if (!currentStep.dest_id) {
+            await UserAnounce.create({
+              ...currentAnnauncment,
+              userUserId: userId,
+              announceType: "purchase",
+            });
+            bot.sendMessage(
+              chatId,
+              `"${currentAnnauncment.title}"\n\n${
+                currentAnnauncment.description
+              }\n\n${currentAnnauncment.tags.join(" ")}`
+            );
+            announcement.delete(userId);
+            return;
+          }
+          const nextStep = steps.find(
+            (step) => step.id === currentStep.dest_id
           );
-          announcement.delete(userId);
-          return;
-        }
-      const nextStep = steps.find((step) => step.id === currentStep.dest_id);
-      return execution(steps, nextStep);
-    });
-  }
+          return execution(steps, nextStep);
+        });
+      }
+    } else if (messageText === "Продаж") {
+      execution(sale_steps, sale_steps[0]);
+
+      function execution(steps, currentStep, errTitle) {
+        bot.sendMessage(chatId, errTitle ?? currentStep.title);
+        bot.once("message", async (msg) => {
+          const response = await handlers[currentStep.type](msg);
+
+          if (response.isError) {
+            return execution(steps, currentStep, response.msg);
+          }
+          let currentAnnauncment = announcement.get(userId);
+
+          currentAnnauncment = {
+            ...(currentAnnauncment ?? {}),
+            ...response.data,
+          };
+          announcement.set(userId, currentAnnauncment);
+
+          if (!currentStep.dest_id) {
+            await UserAnounce.create({
+              ...currentAnnauncment,
+              userUserId: userId,
+              announceType: "sale",
+            });
+            bot.sendPhoto(chatId, currentAnnauncment.photoLink, {
+              caption: `"${currentAnnauncment.title}"\n${
+                currentAnnauncment.price
+              } грн\n\n${
+                currentAnnauncment.description
+              }\n\n${currentAnnauncment.tags.join(" ")}`,
+            });
+            announcement.delete(userId);
+            return;
+          }
+          const nextStep = steps.find(
+            (step) => step.id === currentStep.dest_id
+          );
+          return execution(steps, nextStep);
+        });
+      }
+    }
+  });
 });
 
 module.exports = start;

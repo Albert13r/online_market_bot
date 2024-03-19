@@ -20,8 +20,9 @@ const User = sequelize.define(
   { timestamps: true }
 );
 
-const UserSaleAnounce = sequelize.define(
-  "user_sale_anounce",
+
+const UserAnounce = sequelize.define(
+  "user_anounce",
   {
     anounceId: {
       type: DataTypes.INTEGER,
@@ -35,40 +36,16 @@ const UserSaleAnounce = sequelize.define(
     },
     announceType: {type: DataTypes.STRING, allowNull: false},
     isPublished: {type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false},
-    photoLink: { type: DataTypes.STRING, allowNull: false, unique: false },
+    photoLink: { type: DataTypes.STRING, allowNull: true, unique: false },
     description: { type: DataTypes.STRING, allowNull: false, unique: false },
-    price: { type: DataTypes.INTEGER, allowNull: false, unique: false },
+    price: { type: DataTypes.INTEGER, allowNull: true, unique: false },
     tags: { type: DataTypes.ARRAY(DataTypes.STRING), allowNull: true },
   },
   { timestamps: true }
 );
 
-const UserPurchaseAnounce = sequelize.define(
-  "user_purchase_anounce",
-  {
-    anounceId: {
-      type: DataTypes.INTEGER,
-      primaryKey: true,
-      autoIncrement: true,
-    },
-    title: {
-      type: DataTypes.STRING,
-      allowNull: false,
-      unique: false,
-    },
-    announceType: {type: DataTypes.STRING, allowNull: false},
-    isPublished: {type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false},
-    description: { type: DataTypes.STRING, allowNull: false, unique: false },
-    tags: { type: DataTypes.ARRAY(DataTypes.STRING), allowNull: true },
-  },
-  { timestamps: true }
-);
 
-User.hasMany(UserSaleAnounce, {
-  as: "userSaleAnounce",
+User.hasMany(UserAnounce, {
+  as: "userAnounce",
 });
-
-User.hasMany(UserPurchaseAnounce, {
-  as: "userPurchaseAnounce",
-});
-module.exports = { User, UserSaleAnounce, UserPurchaseAnounce };
+module.exports = { User, UserAnounce };
